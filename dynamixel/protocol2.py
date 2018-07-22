@@ -51,8 +51,6 @@ class Protocol2Bus:
         return result
 
 
-
-
     def send_and_wait(self, address, instruction, parameters):
         """Sends a packet on the bus. Waits for up to max_timeout_us for
         a response. If a valid response is retrieved, it returns the servo
@@ -107,7 +105,8 @@ class Protocol2Bus:
 
         return remaining[1:-2]
 
-    def _build_packet(self, address, instruction, parameters):
+    @staticmethod
+    def _build_packet(address, instruction, parameters):
         packet = [0xFF, 0xFF, 0xFD, 0x00]
         packet.append(address)
         packet.append(len(parameters)+3 % 256)  # Packet_length_lower

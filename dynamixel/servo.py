@@ -1,13 +1,25 @@
+"""Contains the servo object, as well as the functions for converting from
+an array of bytes to a more human readable format"""
+
 import functools
 import logging
 import math
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 class Servo:
+    """Constructs a dynamixel servo from a python dict of registers, an
+    address and a UART bus. This class handles the conversion from registers
+    to nice function names. If you run dir(servo), you will get a list of
+    set_<register> and get_<register> functions that correspond to the
+    functionality of the servo. These are configured through the descriptor.
+    Most descriptors should come from servodata.get_servo(model_number).
+
+    This class also contains a list "on_hardware_error" which can contain
+    callbacks to run when the servo reports a hardware error over it's status
+    packet from a normal read/write.
+    """
     def __init__(self, bus, address, descriptor=None):
-        """Constructs a dynamixel servo from a python dict of registers and
-        a UART bus"""
         self.bus = bus
         self.address = address
         self.data = descriptor
@@ -32,17 +44,21 @@ class Servo:
                 )
 
     def get_register(self, register, length, display_info):
+        """Returns the value of a register, as parsed by the display_info"""
         got_data = self.bus.read(self.address, register, length)
-        if got_data == None:
-            logger.error("Failed to read register {} of servo {}".format(register, self.address))
+        if got_data is None:
+            LOGGER.error("Failed to read register {} of servo {}".format(register, self.address))
             return None
 
         self._check_hardware_error(got_data[0])
         return format_data(got_data[1:], display_info)
 
     def _check_hardware_error(self, byte):
+        """Checks to see if the supplied byte indicates a hardware error on
+        the servo. If it does, it runs any functions in the on_hardware_error
+        list"""
         if byte != 0:
-            logger.warn("Hardware error on servo {}".format(self.address))
+            LOGGER.warn("Hardware error on servo {}".format(self.address))
             for funct in self.on_hardware_error:
                 funct(self)
 
@@ -55,12 +71,11 @@ class Servo:
 
         result = self.bus.write(self.address, register, data_to_write)
         if result == None:
-            logger.error("Failed to set register {} of servo {}".format(register, self.address))
+            LOGGER.error("Failed to set register {} of servo {}".format(register, self.address))
             return None
 
         self._check_hardware_error(result[0])
         return True
-
 
     def ping(self):
         """Returns True if the ping succeeds, otherwise it returns False"""
