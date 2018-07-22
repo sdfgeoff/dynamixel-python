@@ -4,7 +4,8 @@ import logging
 
 import serial
 import time
-import protocol2, servodata, servo
+import fix_path
+from dynamixel import protocol2, servodata, servo
 
 #logging.getLogger('protocol2').setLevel(logging.DEBUG)
 logging.getLogger('servo').setLevel(logging.CRITICAL)
@@ -15,7 +16,11 @@ uart = serial.Serial('/dev/ttyUSB0', 1000000, timeout=1.0)
 bus = protocol2.Protocol2Bus(uart)
 
 servo_model = bus.ping(ADDRESS)
+if servo_model is None:
+    print("Unable to find servo at address {}".format(ADDRESS))
 servo_data = servodata.get_servo(servo_model)
+if servo_data is None:
+    print("Unknown servo type: {}".format(servo_model))
 servo_2 = servo.Servo(bus, ADDRESS, servo_data)
 
 
