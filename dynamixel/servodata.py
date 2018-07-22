@@ -6,8 +6,9 @@ SERVO_DATA = {}
 
 
 def get_servo(model_number):
-	"""Returns the servo data for a specified model number"""
-	return SERVO_DATA[model_number]
+	"""Returns the servo data for a specified model number. Returns None
+    if the servo is unknown"""
+	return SERVO_DATA.get(model_number)
 
 
 def load_database(directory):
@@ -17,5 +18,5 @@ def load_database(directory):
 			raw_data = json.load(open(os.path.join(directory, file_name)))
 			SERVO_DATA[raw_data['model_number']] = raw_data
 
-	
+
 load_database(SERVO_DIRECTORY)

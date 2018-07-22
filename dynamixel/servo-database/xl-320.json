@@ -4,7 +4,7 @@
 	"register_map":[
 			{"address":0, "size":2, "name":"Model Number", "access":"R", "display":{"type":"hex"}},
 			{"address":2, "size":1, "name":"Firmware Version", "access":"R", "display":{"type":"hex"}},
-			
+
 			{"address":3, "size":1, "name":"ID", "access":"RW", "display":{"type":"int", "min":0, "max":252}},
 			{"address":4, "size":1, "name":"Baud Rate", "access":"RW", "display":{"type":"int", "min":0, "max":3}},
 			{"address":5, "size":1, "name":"Return Time Delay", "access":"RW", "display":{"type":"int", "min":0, "max":254}},
@@ -17,22 +17,22 @@
 			{"address":15, "size":2, "name":"Max Torque", "access":"RW", "display":{"type":"int", "min":0, "max":1023}},
 			{"address":17, "size":2, "name":"Return Level", "access":"RW", "display":{"type":"int", "min":0, "max":2}},
 			{"address":18, "size":1, "name":"Alarm Shutdown", "access":"RW", "display":{"type":"int", "min":0, "max":7}},
-			
+
 			{"address":24, "size":1, "name":"Torque Enable", "access":"RW", "display":{"type":"bool"}},
-			{"address":25, "size":1, "name":"Alarm Shutdown", "access":"RW", "display":{"type":"int", "min":0, "max":3}},
+			{"address":25, "size":1, "name":"LED", "access":"RW", "display":{"type":"int", "min":0, "max":7}},
 			{"address":27, "size":1, "name":"D Gain", "access":"RW", "display":{"type":"int", "min":0, "max":254}},
 			{"address":28, "size":1, "name":"I Gain", "access":"RW", "display":{"type":"int", "min":0, "max":254}},
 			{"address":29, "size":1, "name":"P Gain", "access":"RW", "display":{"type":"int", "min":0, "max":254}},
-			{"address":30, "size":2, "name":"Goal Position", "access":"RW", "display":{"type":"int", "min":0, "max":1023}},
+			{"address":30, "size":2, "name":"Goal Position", "access":"RW", "display":{"type":"float", "scale":0.29, "offset":512, "min":0, "max":1023}},
 			{"address":32, "size":2, "name":"Moving Speed", "access":"RW", "display":{"type":"int", "min":0, "max":2047}},
 			{"address":35, "size":2, "name":"Torque Limit", "access":"RW", "display":{"type":"int", "min":0, "max":1023}},
-		
-			{"address":37, "size":2, "name":"Present Position", "access":"R", "display":{"type":"int"}},
+
+			{"address":37, "size":2, "name":"Present Position", "access":"R", "display":{"type":"float", "scale":0.29, "offset":512}},
 			{"address":39, "size":2, "name":"Present Speed", "access":"R", "display":{"type":"int"}},
 			{"address":41, "size":2, "name":"Present Load", "access":"R", "display":{"type":"int"}},
 			{"address":45, "size":1, "name":"Present Voltage", "access":"R", "display":{"type":"int"}},
 			{"address":46, "size":1, "name":"Present Temperature", "access":"R", "display":{"type":"int"}},
-			
+
 			{"address":47, "size":1, "name":"Registered Instruction", "access":"R", "display":{"type":"hex"}},
 			{"address":49, "size":1, "name":"Moving", "access":"R", "display":{"type":"bool"}},
 			{"address":50, "size":1, "name":"Hardware Error Status", "access":"R", "display":{"type":"bits"}},
