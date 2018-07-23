@@ -38,20 +38,24 @@ class Configurator:
             "rescan_ports":self.rescan_ports,
             "connect":self.create_bus,
             "scan":self.start_scan,
-            "select_servo":self.select_servo
+            "select_servo":self.select_servo,
+            "select_register":self.select_register,
         })
 
         window = self.builder.get_object("main_window")
         window.show_all()
 
-        self._servo_list = Gtk.ListStore(int, str)
-        self._setup_servo_list()
-        self._insert_bauds()
-        self.rescan_ports()
-
+        self._registers = []
         self._scan_id = 0
         self.bus = None
         self._current_servo = None
+        self._servo_list = Gtk.ListStore(int, str)
+        
+        self._setup_servo_list()
+        self._insert_bauds()
+        self.rescan_ports()
+        
+
 
 
     def rescan_ports(self, *_args):
@@ -87,14 +91,18 @@ class Configurator:
         self.bus = None
         self._current_servo = None
         self._servo_list.clear()
+        self.clear_servo_registers()
         port = self.builder.get_object('port_lister').get_active_text()
         baud = int(self.builder.get_object('baud_lister').get_active_text())
 
         LOGGER.debug("Creating bus with port=%s and baud=%d", port, baud)
         if port and baud:
-            self.bus = dynamixel.protocol2.Protocol2Bus(
-                serial.Serial(port, baud, timeout=UART_TIMEOUT)
-            )
+            try:
+                uart = serial.Serial(port, baud, timeout=UART_TIMEOUT)
+            except:
+                self.bus = None
+            else:
+                self.bus = dynamixel.protocol2.Protocol2Bus(uart)
         else:
             self.bus = None
 
@@ -103,7 +111,7 @@ class Configurator:
         _continue_scan function"""
         if self.bus is None:
             self.create_bus()
-        self._scan_id = 1
+        self._scan_id = 0
         self.builder.get_object('connect_button').set_sensitive(False)
         self.builder.get_object('scan_progress').set_fraction(0.0)
         GLib.idle_add(self._continue_scan)
@@ -112,7 +120,7 @@ class Configurator:
         """Incrementally scans the bus for servos. This runs on a GTK idle_add
         timer so that it doesn't block the UI"""
         self._scan_id += 1
-        if self.bus is None or self._scan_id > 254:
+        if self.bus is None or self._scan_id > 253:
             LOGGER.info("Found %d servos", len(self._servo_list))
             self.builder.get_object('connect_button').set_sensitive(True)
             self.builder.get_object('scan_progress').set_fraction(1.0)
@@ -130,10 +138,45 @@ class Configurator:
             self._servo_list.append([self._scan_id, servo_name])
 
         return True
-
+        
+    def clear_servo_registers(self):
+        for item in self._registers:
+            item.destroy()
+        self._registers = []
+        
+    def set_current_servo(self, servo):
+        self._current_servo = servo
+        listbox = self.builder.get_object('servo_parameter')
+        self.clear_servo_registers()
+        if servo is None:
+            return
+            
+        self.items = []
+        
+        register_data = self._current_servo.get_register_data()
+        if register_data is None:
+            logging.warn("No register data for %s", self._current_servo)
+            return
+        for register in register_data:
+            row = RegisterEntry(register)
+            self._registers.append(row)
+            listbox.add(row)
+        listbox.show_all()
+        
+    def select_register(self, *args):
+        row_item = self.builder.get_object('servo_parameter').get_selected_row()
+        register_data = row_item.register_data
+        if self._current_servo is None:
+            return
+            
+        register_name = dynamixel.servo.format_register_name(register_data['name'])
+        print(self._current_servo.__dict__[register_name]())
+            
+        
     def select_servo(self, *_args):
         """Selects which servo the user wihes to edit"""
         path, _column = self.builder.get_object('found_servos').get_cursor()
+        self.clear_servo_registers()
         if path is not None:
             servo_id = self._servo_list.get_iter(path)
             servo_address = self._servo_list.get_value(servo_id, 0)
@@ -144,14 +187,26 @@ class Configurator:
 
             servo_model = self.bus.ping(servo_address)
             servo_data = dynamixel.servodata.get_servo(servo_model)
-            self._current_servo = dynamixel.servo.Servo(
+            self.set_current_servo(dynamixel.servo.Servo(
                 self.bus, servo_address, servo_data
-            )
+            ))
 
 
     def close_window(self, *args):
         """Quits the program"""
         Gtk.main_quit(*args)
+
+
+
+class RegisterEntry(Gtk.ListBoxRow):
+    def __init__(self, register_data):
+        super().__init__()
+        self.register_data = register_data
+        
+        self.hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
+        self.add(self.hbox)
+        label = Gtk.Label(register_data['name'], xalign=0)
+        self.hbox.pack_start(label, True, True, 0)
 
 
 

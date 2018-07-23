@@ -72,6 +72,7 @@ class Protocol2Bus:
         and is zero if no error. Otherwise it returns None"""
 
         self.uart.flush() # Clear buffer
+        self.uart.reset_input_buffer()
         packet = self._build_packet(address, instruction, parameters)
         LOGGER.debug("Sending %s", packet)
         self.uart.write(packet)

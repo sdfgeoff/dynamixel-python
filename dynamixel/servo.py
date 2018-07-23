@@ -29,16 +29,17 @@ class Servo:
 
         if self.data is not None:
             for register in self.data['register_map']:
-                name = register['name'].lower().replace(' ', '_')
+                get_name = format_register_name(register['name'], True)
+                set_name = format_register_name(register['name'], False)
                 if 'R' in register['access'].upper():
-                    self.__dict__['get_' + name] = functools.partial(
+                    self.__dict__[get_name] = functools.partial(
                         self.get_register,
                         register['address'],
                         register['size'],
                         register['display']
                     )
                 if 'W' in register['access'].upper():
-                    self.__dict__['set_' + name] = functools.partial(
+                    self.__dict__[set_name] = functools.partial(
                         self.set_register,
                         register['address'],
                         register['size'],
@@ -66,6 +67,12 @@ class Servo:
             LOGGER.warning("Hardware error on servo %d", self.address)
             for funct in self.on_hardware_error:
                 funct(self)
+                
+    def get_register_data(self):
+        """Returns a dict of data about the registers this servo has"""
+        if self.data is not None:
+            return self.data['register_map']
+        return None
 
 
     def set_register(self, register, length, display_info, value):
@@ -90,7 +97,19 @@ class Servo:
         return self.bus.ping(self.address) is not None
 
     def __repr__(self):
-        return "Servo {} ({})".format(self.address, self.data['name'])
+        name = '??'
+        if self.data is not None:
+            name = self.data['name']
+        return "Servo {} ({})".format(self.address, name)
+
+
+
+def format_register_name(base_str, getter=True):
+    """Converts a register human-readable name into the python function name"""
+    base_str = base_str.lower().replace(' ', '_')
+    if getter:
+        return 'get_'+base_str
+    return 'set_'+base_str
 
 
 def format_data(data, display_info):
