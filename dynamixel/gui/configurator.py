@@ -19,13 +19,11 @@ import dynamixel.servo
 import dynamixel.servodata
 
 
-
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
-
 logging.getLogger('dynamixel.protocol2').setLevel(logging.CRITICAL)
-BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 UART_TIMEOUT = 5/254
 
 
@@ -53,6 +51,7 @@ class Configurator:
 
         self._scan_id = 0
         self.bus = None
+        self._current_servo = None
 
 
     def rescan_ports(self, *_args):
@@ -86,6 +85,7 @@ class Configurator:
         """Creates the bus used for talking to the servos. When it does this
         it clears out the list of known servos"""
         self.bus = None
+        self._current_servo = None
         self._servo_list.clear()
         port = self.builder.get_object('port_lister').get_active_text()
         baud = int(self.builder.get_object('baud_lister').get_active_text())
@@ -131,7 +131,6 @@ class Configurator:
 
         return True
 
-
     def select_servo(self, *_args):
         """Selects which servo the user wihes to edit"""
         path, _column = self.builder.get_object('found_servos').get_cursor()
@@ -139,6 +138,15 @@ class Configurator:
             servo_id = self._servo_list.get_iter(path)
             servo_address = self._servo_list.get_value(servo_id, 0)
             LOGGER.debug("Clicked on servo at address %d", servo_address)
+            if self.bus is None:
+                LOGGER.warning("How do we have a servo listing and no bus?")
+                return
+
+            servo_model = self.bus.ping(servo_address)
+            servo_data = dynamixel.servodata.get_servo(servo_model)
+            self._current_servo = dynamixel.servo.Servo(
+                self.bus, servo_address, servo_data
+            )
 
 
     def close_window(self, *args):

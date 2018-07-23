@@ -26,22 +26,24 @@ class Servo:
 
         self.on_hardware_error = list()
 
-        for register in self.data['register_map']:
-            name = register['name'].lower().replace(' ', '_')
-            if 'R' in register['access'].upper():
-                self.__dict__['get_' + name] = functools.partial(
-                    self.get_register,
-                    register['address'],
-                    register['size'],
-                    register['display']
-                )
-            if 'W' in register['access'].upper():
-                self.__dict__['set_' + name] = functools.partial(
-                    self.set_register,
-                    register['address'],
-                    register['size'],
-                    register['display']
-                )
+
+        if self.data is not None:
+            for register in self.data['register_map']:
+                name = register['name'].lower().replace(' ', '_')
+                if 'R' in register['access'].upper():
+                    self.__dict__['get_' + name] = functools.partial(
+                        self.get_register,
+                        register['address'],
+                        register['size'],
+                        register['display']
+                    )
+                if 'W' in register['access'].upper():
+                    self.__dict__['set_' + name] = functools.partial(
+                        self.set_register,
+                        register['address'],
+                        register['size'],
+                        register['display']
+                    )
 
     def get_register(self, register, length, display_info):
         """Returns the value of a register, as parsed by the display_info"""
