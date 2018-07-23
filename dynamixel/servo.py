@@ -47,7 +47,10 @@ class Servo:
         """Returns the value of a register, as parsed by the display_info"""
         got_data = self.bus.read(self.address, register, length)
         if got_data is None:
-            LOGGER.error("Failed to read register {} of servo {}".format(register, self.address))
+            LOGGER.error(
+                "Failed to read register %d of servo %d",
+                register, self.address
+            )
             return None
 
         self._check_hardware_error(got_data[0])
@@ -58,7 +61,7 @@ class Servo:
         the servo. If it does, it runs any functions in the on_hardware_error
         list"""
         if byte != 0:
-            LOGGER.warn("Hardware error on servo {}".format(self.address))
+            LOGGER.warning("Hardware error on servo %d", self.address)
             for funct in self.on_hardware_error:
                 funct(self)
 
@@ -70,8 +73,11 @@ class Servo:
             data_to_write[-pos] = data
 
         result = self.bus.write(self.address, register, data_to_write)
-        if result == None:
-            LOGGER.error("Failed to set register {} of servo {}".format(register, self.address))
+        if result is None:
+            LOGGER.error(
+                "Failed to set register %d of servo %d",
+                register, self.address
+            )
             return None
 
         self._check_hardware_error(result[0])
@@ -79,7 +85,7 @@ class Servo:
 
     def ping(self):
         """Returns True if the ping succeeds, otherwise it returns False"""
-        return self.bus.ping(self.address) != None
+        return self.bus.ping(self.address) is not None
 
     def __repr__(self):
         return "Servo {} ({})".format(self.address, self.data['name'])

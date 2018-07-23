@@ -1,26 +1,33 @@
+'''Handles encoding and decoding packets for dynamixel protocol-2. This
+includes constructing the various packet types (eg read packet, write packet,
+ping)'''
 import logging
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class Protocol2Bus:
+    """Constructs a higher abstraction over the UART to allow sending and
+    receiving protocol2 packets.
+    The uart should support .read() and .write(), which should both
+    return bytearrays."""
     def __init__(self, uart):
-        """Constructs a higher abstraction over the UART to allow sending and
-        receiving protocol2 packets.
-        The uart should support .read() and .write(), which should both
-        return bytearrays."""
         self.uart = uart
 
     def ping(self, address):
         """Attempts to ping a servo. Returns the servo model number if it is
         present, or None if no servo was detected"""
-        logging.debug("Pinging servo %d", address)
-        data = self.send_and_wait(address, 0x01, []);
+        LOGGER.debug("Pinging servo %d", address)
+        data = self.send_and_wait(address, 0x01, [])
         if data is not None:
             servo_id = data[1] + (data[2]<<8)
-            logging.debug("Found servo at %d with model number %d", address, servo_id)
+            LOGGER.debug(
+                "Found servo at %d with model number %d",
+                address, servo_id
+            )
             return servo_id
-        logging.debug("No servo found at %d", address)
+        LOGGER.debug("No servo found at %d", address)
+        return None
 
     def read(self, address, register, length):
         """Reads the registers on a device. Returns the data from the
@@ -29,20 +36,27 @@ class Protocol2Bus:
         the "alarm bit" that is set to non-zero if there is a problem with the
         servo.
         """
-        logging.debug("Reading from servo %d (register %d, length %d) ", address, register, length)
+        LOGGER.debug(
+            "Reading from servo %d (register %d, length %d) ",
+            address, register, length
+        )
         data = self.send_and_wait(address, 0x02, [
             register % 256,
             (register >> 8),
             length % 256,
             (length >> 8),
-        ]);
+        ])
         if data is not None:
             return data
-        logging.debug("No useful response from servo at %d", address)
+        LOGGER.debug("No useful response from servo at %d", address)
+        return None
 
     def write(self, address, register, data):
         """Writes to an address on the device."""
-        logging.debug("Setting servo %d (register %d, value %s) ", address, register, data)
+        LOGGER.debug(
+            "Setting servo %d (register %d, value %s) ",
+            address, register, data
+        )
         out_bufer = [
             register % 256,
             (register >> 8),
@@ -59,48 +73,58 @@ class Protocol2Bus:
 
         self.uart.flush() # Clear buffer
         packet = self._build_packet(address, instruction, parameters)
-        logger.debug("Sending %s", packet)
+        LOGGER.debug("Sending %s", packet)
         self.uart.write(packet)
         self.uart.flush()
         sent = self.uart.read(len(packet))
 
         if sent != packet:
-            logger.error("Packet sent from UART does not match what should have been transmitted. This could be due to a bus collision or because the timeout on the serial object did not wait long enough")
+            LOGGER.error(
+                'Packet sent from UART does not match what should'
+                ' have been transmitted. This could be due to a bus collision'
+                ' or because the timeout on the serial object did not wait'
+                ' long enough'
+            )
             return None
 
         rx_header = self.uart.read(7)
-        logger.debug("Got Header %s", rx_header)
+        LOGGER.debug("Got Header %s", rx_header)
         if len(rx_header) != 7:
-            logger.error("Recieved Header incorrect length (should be 7, got %d)", len(rx_header))
+            LOGGER.error(
+                "Recieved Header incorrect length (should be 7, got %d)",
+                len(rx_header)
+            )
             return None
 
         if rx_header[0:5] != packet[0:5]:
-            logger.error("Revieved packet with bad header or from incorrect servo")
+            LOGGER.error(
+                "Revieved packet with bad header or from incorrect servo"
+            )
             return None
         packet_len = rx_header[5] + (rx_header[6] << 8)
-        logger.debug("Expecting length %d", packet_len)
+        LOGGER.debug("Expecting length %d", packet_len)
         remaining = self.uart.read(packet_len)
-        logger.debug("Got Remaining %s (length=%d)", remaining, len(remaining))
+        LOGGER.debug("Got Remaining %s (length=%d)", remaining, len(remaining))
         if len(remaining) != packet_len:
-            logger.error("Recieved incomplete Packet")
+            LOGGER.error("Recieved incomplete Packet")
             return None
 
         full_packet = rx_header + remaining
-        logger.debug("Full Packet: %s", full_packet)
+        LOGGER.debug("Full Packet: %s", full_packet)
         read_crc = full_packet[-2] + (full_packet[-1] << 8)
         calc_crc = crc16(full_packet[:-2])
         if read_crc != calc_crc:
-            logger.error("Incorrect CRC")
+            LOGGER.error("Incorrect CRC")
             return None
 
         if full_packet[7] != 0x055:
             # All packets from servos have the "instruction" 0x55
-            logger.error("Not a status packet")
+            LOGGER.error("Not a status packet")
             return None
 
         error_byte = remaining[1]
         if (error_byte & 0x7F) != 0:
-            logging.error("Servo reports communication error: %d", error_byte)
+            LOGGER.error("Servo reports communication error: %d", error_byte)
             return None
 
         return remaining[1:-2]
@@ -164,7 +188,7 @@ CRC_TABLE = [
 def crc16(data, val=0):
     """Computes dynamixels CRC"""
     val = 0
-    for j in range(0, len(data)):
-        i = (val >> 8) ^ data[j] & 0xFF
+    for sample in data:
+        i = (val >> 8) ^ sample & 0xFF
         val = ((val << 8) ^ CRC_TABLE[i]) % (1<<16)
     return val
