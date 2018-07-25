@@ -77,10 +77,9 @@ class Servo:
 
     def set_register(self, register, length, display_info, value):
         """Returns True if succeeded, None if failed"""
-        data_to_write = [0x01] * length
+        data_to_write = [0x00] * length
         for pos, data in enumerate(format_data_inverse(value, display_info)):
             data_to_write[-pos] = data
-
         result = self.bus.write(self.address, register, data_to_write)
         if result is None:
             LOGGER.error(
@@ -123,11 +122,7 @@ def format_data(data, display_info):
     for pos, byte in enumerate(data):
         combined += byte << (8*pos)
 
-    if "offset" in display_info:
-        combined -= display_info['offset']
-
-    if "scale" in display_info:
-        combined *= display_info['scale']
+    combined = convert_value(combined, display_info)
 
     if display_info['type'] == 'int':
         return int(combined)
@@ -162,7 +157,23 @@ def format_data_inverse(data, display_info):
 
     if display_info['type'] == 'bool':
         value = int(data)
+        
+    value = convert_value_inverse(value, display_info)
 
+    return list(value.to_bytes(math.floor((value.bit_length() + 7) / 8), 'little'))
+
+
+def convert_value(val, display_info):
+    if "offset" in display_info:
+        val -= display_info['offset']
+
+    if "scale" in display_info:
+        val *= display_info['scale']
+        
+    return val
+
+
+def convert_value_inverse(value, display_info):
     # Restrict range and correct
     if 'scale' in display_info:
         value = value / display_info['scale']
@@ -175,5 +186,5 @@ def format_data_inverse(data, display_info):
         value = min(display_info['max'], value)
 
     value = int(value)
-
-    return list(value.to_bytes(math.floor((value.bit_length() + 7) / 8), 'little'))
+    return value
+    

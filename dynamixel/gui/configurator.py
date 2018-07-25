@@ -109,6 +109,9 @@ class Configurator:
     def start_scan(self, *_args):
         """Starts the scan for servos. The actual scanning is handled by the
         _continue_scan function"""
+        self._current_servo = None
+        self._servo_list.clear()
+        self.clear_servo_registers()
         if self.bus is None:
             self.create_bus()
         self._scan_id = 0
@@ -158,20 +161,14 @@ class Configurator:
             logging.warn("No register data for %s", self._current_servo)
             return
         for register in register_data:
-            row = RegisterEntry(register)
+            row = create_register_entry(servo, register)
             self._registers.append(row)
             listbox.add(row)
         listbox.show_all()
         
     def select_register(self, *args):
         row_item = self.builder.get_object('servo_parameter').get_selected_row()
-        register_data = row_item.register_data
-        if self._current_servo is None:
-            return
-            
-        register_name = dynamixel.servo.format_register_name(register_data['name'])
-        print(self._current_servo.__dict__[register_name]())
-            
+        register_data = row_item.refresh_value()
         
     def select_servo(self, *_args):
         """Selects which servo the user wihes to edit"""
@@ -198,16 +195,176 @@ class Configurator:
 
 
 
+def create_register_entry(servo, register_data):
+    """Creates the correct type of RegisterEntry"""
+    display_type = register_data['display']['type']
+    display_map = {
+        'hex': HexRegister,
+        'int': IntRegister,
+        'float': FloatRegister,
+    }
+    display_class = display_map.get(display_type, RegisterEntry)
+    return display_class(servo, register_data)
+
+
+
 class RegisterEntry(Gtk.ListBoxRow):
-    def __init__(self, register_data):
+    def __init__(self, servo, register_data):
         super().__init__()
+        self.servo = servo
         self.register_data = register_data
         
         self.hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
         self.add(self.hbox)
         label = Gtk.Label(register_data['name'], xalign=0)
+        
+        if not hasattr(self, 'display_widget'):
+            LOGGER.warning(
+                "No value display widget on register: %s", 
+                register_data['name']
+            )
+            self.display_widget = Gtk.Label()
+             
+             
+        self.display_widget.width_request = 200
+        self.display_widget.set_sensitive(
+            'W' in self.register_data['access']
+        )
+        self.hbox.pack_end(self.display_widget, True, True, 0)
         self.hbox.pack_start(label, True, True, 0)
 
+        self.refresh_value()
+        
+    
+    def _get_value(self):
+        """Gets the current value from the servo"""
+        register_name = dynamixel.servo.format_register_name(
+            self.register_data['name'],
+            True
+        )
+        return self.servo.__dict__[register_name]()
+        
+    def _set_value(self, val):
+        """Sets this registers value on the servo"""
+        register_name = dynamixel.servo.format_register_name(
+            self.register_data['name'],
+            False
+        )
+        return self.servo.__dict__[register_name](val)
+        
+    
+    def refresh_value(self):
+        """Updates the value shown on the GUI"""
+        self.display_widget.set_text(str(self._get_value()))
+
+
+   
+
+class HexRegister(RegisterEntry):
+    def __init__(self, servo, register_data):
+        self.display_widget = Gtk.Entry()
+        self.display_widget.connect("activate", self._on_change)
+        super().__init__(servo, register_data)
+        
+    def _on_change(self, *args):
+        """Nearly all hex reigsters are read only"""
+        LOGGER.error("Setting hex registers is not implemented")
+        print(self.display_widget.text)
+
+
+class IntRegister(RegisterEntry):
+    def __init__(self, servo, register_data):
+        self.register_data = register_data
+        self.display_widget = Gtk.SpinButton()
+        #self.display_widget = Gtk.SpinButton.set_digits(0)
+        
+        self.adjustment = None
+        self._setup_adjustment()
+        self.display_widget.set_adjustment(self.adjustment)
+        self.adjustment.connect("value-changed", self._on_change)
+        self._lock = False
+        super().__init__(servo, register_data)
+        
+        
+    def _setup_adjustment(self):
+        min_val = dynamixel.servo.convert_value(
+            self.register_data['display'].get('min', 0),
+            self.register_data['display']
+        )
+        max_val = (1 << (8 * self.register_data['size'])) - 1
+        max_val = self.register_data['display'].get('max', max_val)
+        max_val = dynamixel.servo.convert_value(
+            max_val,
+            self.register_data['display']
+        )
+        
+        self.adjustment = Gtk.Adjustment(
+            0,
+            min_val,
+            max_val,
+            self.register_data['display'].get('scale', 1),
+            10, 0
+        )
+        
+    def _on_change(self, *args):
+        """Changes the value on the servo"""
+        if self._lock:
+            return
+        new_val = self.display_widget.get_value_as_int()
+        self._set_value(new_val)
+
+    def refresh_value(self):
+        self._lock = True
+        self.adjustment.set_value(self._get_value())
+        self._lock = False
+        
+
+class FloatRegister(RegisterEntry):
+    def __init__(self, servo, register_data):
+        self.register_data = register_data
+        self.display_widget = Gtk.SpinButton()
+        #self.display_widget = Gtk.SpinButton.set_digits(0)
+        
+        self.adjustment = None
+        self._setup_adjustment()
+        self.display_widget.set_adjustment(self.adjustment)
+        self.adjustment.connect("value-changed", self._on_change)
+        self._lock = False
+        super().__init__(servo, register_data)
+        
+        
+    def _setup_adjustment(self):
+        min_val = dynamixel.servo.convert_value(
+            self.register_data['display'].get('min', 0),
+            self.register_data['display']
+        )
+        max_val = (1 << (8 * self.register_data['size'])) - 1
+        max_val = self.register_data['display'].get('max', max_val)
+        max_val = dynamixel.servo.convert_value(
+            max_val,
+            self.register_data['display']
+        )
+        
+        self.adjustment = Gtk.Adjustment(
+            0,
+            min_val,
+            max_val,
+            self.register_data['display'].get('scale', 1),
+            10, 0
+        )
+        
+    def _on_change(self, *args):
+        """Changes the value on the servo"""
+        if self._lock:
+            return
+        new_val = self.display_widget.get_value()
+        self._set_value(new_val)
+
+    def refresh_value(self):
+        self._lock = True
+        self.adjustment.set_value(self._get_value())
+        self._lock = False
+        
 
 
 def main():
