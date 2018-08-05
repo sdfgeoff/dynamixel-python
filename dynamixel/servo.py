@@ -78,7 +78,8 @@ class Servo:
     def set_register(self, register, length, display_info, value):
         """Returns True if succeeded, None if failed"""
         data_to_write = [0x00] * length
-        for pos, data in enumerate(format_data_inverse(value, display_info)):
+        formatted_data = format_data_inverse(value, display_info)
+        for pos, data in enumerate(formatted_data):
             data_to_write[-pos] = data
         result = self.bus.write(self.address, register, data_to_write)
         if result is None:

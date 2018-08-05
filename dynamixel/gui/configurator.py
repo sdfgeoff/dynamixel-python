@@ -12,7 +12,7 @@ import serial
 import serial.tools.list_ports
 import gi
 gi.require_version('Gtk', '3.0')  # noqa
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib, GObject
 
 import dynamixel.protocol2
 import dynamixel.servo
@@ -45,6 +45,7 @@ class Configurator:
         window = self.builder.get_object("main_window")
         window.show_all()
 
+        self._current_register = 0
         self._registers = []
         self._scan_id = 0
         self.bus = None
@@ -54,6 +55,8 @@ class Configurator:
         self._setup_servo_list()
         self._insert_bauds()
         self.rescan_ports()
+        
+        GObject.timeout_add(50, self._update_register_values)
         
 
 
@@ -69,7 +72,7 @@ class Configurator:
 
     def _insert_bauds(self):
         """Inserts the baud rate options into the combo box"""
-        bauds = [9600, 115200, 1000000]
+        bauds = [9600, 57600, 115200, 1000000]
         baud_list = self.builder.get_object('baud_lister')
         for baud in bauds:
             baud_list.append_text(str(baud))
@@ -147,6 +150,15 @@ class Configurator:
             item.destroy()
         self._registers = []
         
+        
+    def _update_register_values(self):
+        if self._current_register >= len(self._registers):
+            self._current_register = 0
+        else:
+            self._registers[self._current_register].refresh_value()
+            self._current_register += 1
+        return True
+        
     def set_current_servo(self, servo):
         self._current_servo = servo
         listbox = self.builder.get_object('servo_parameter')
@@ -202,13 +214,15 @@ def create_register_entry(servo, register_data):
         'hex': HexRegister,
         'int': IntRegister,
         'float': FloatRegister,
+        'bytes': RegisterLabel,
+        'bool': BoolRegister,
     }
-    display_class = display_map.get(display_type, RegisterEntry)
+    display_class = display_map.get(display_type, RegisterLabel)
     return display_class(servo, register_data)
 
 
 
-class RegisterEntry(Gtk.ListBoxRow):
+class RegisterLabel(Gtk.ListBoxRow):
     def __init__(self, servo, register_data):
         super().__init__()
         self.servo = servo
@@ -216,7 +230,11 @@ class RegisterEntry(Gtk.ListBoxRow):
         
         self.hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
         self.add(self.hbox)
-        label = Gtk.Label(register_data['name'], xalign=0)
+        name = register_data['name']
+        if 'unit' in register_data['display']:
+            name += ' ({})'.format(register_data['display']['unit'])
+            
+        label = Gtk.Label(name, xalign=0)
         
         if not hasattr(self, 'display_widget'):
             LOGGER.warning(
@@ -232,8 +250,6 @@ class RegisterEntry(Gtk.ListBoxRow):
         )
         self.hbox.pack_end(self.display_widget, True, True, 0)
         self.hbox.pack_start(label, True, True, 0)
-
-        self.refresh_value()
         
     
     def _get_value(self):
@@ -260,7 +276,7 @@ class RegisterEntry(Gtk.ListBoxRow):
 
    
 
-class HexRegister(RegisterEntry):
+class HexRegister(RegisterLabel):
     def __init__(self, servo, register_data):
         self.display_widget = Gtk.Entry()
         self.display_widget.connect("activate", self._on_change)
@@ -272,7 +288,21 @@ class HexRegister(RegisterEntry):
         print(self.display_widget.text)
 
 
-class IntRegister(RegisterEntry):
+class BoolRegister(RegisterLabel):
+    def __init__(self, servo, register_data):
+        self.display_widget = Gtk.Switch()
+        self.display_widget.connect("activate", self._on_change)
+        super().__init__(servo, register_data)
+        
+    def _on_change(self, *args):
+        """Nearly all hex reigsters are read only"""
+        self._set_value(self.display_widget.get_active())
+        
+    def refresh_value(self):
+        self.display_widget.set_active(self._get_value())
+
+
+class IntRegister(RegisterLabel):
     def __init__(self, servo, register_data):
         self.register_data = register_data
         self.display_widget = Gtk.SpinButton()
@@ -319,11 +349,10 @@ class IntRegister(RegisterEntry):
         self._lock = False
         
 
-class FloatRegister(RegisterEntry):
+class FloatRegister(RegisterLabel):
     def __init__(self, servo, register_data):
         self.register_data = register_data
-        self.display_widget = Gtk.SpinButton()
-        #self.display_widget = Gtk.SpinButton.set_digits(0)
+        self.display_widget = Gtk.Scale()
         
         self.adjustment = None
         self._setup_adjustment()
